@@ -50,6 +50,12 @@ _multipart_boundary_re = re.compile("^[ -~]{0,200}[!-~]$")
 _supported_multipart_encodings = frozenset(["base64", "quoted-printable"])
 
 
+# https://github.com/pallets/werkzeug/commit/fe899d0cdf767a7289a8bf746b7f72c2907a1b4b
+# since we can't simply cherry-pick this commit back to this branch,
+# it is hardcoded to make a most-simple patch.
+MAX_FORM_PARTS = 1000
+
+
 def default_stream_factory(
     total_content_length, filename, content_type, content_length=None
 ):
@@ -455,7 +461,13 @@ class MultiPartParser(object):
         elif terminator != next_part:
             self.fail("Expected boundary at start of multipart data")
 
+        parts_counter = 0
+
         while terminator != last_part:
+            if parts_counter > MAX_FORM_PARTS:
+                raise exceptions.RequestEntityTooLarge()
+            parts_counter += 1
+
             headers = parse_multipart_headers(iterator)
 
             disposition = headers.get("content-disposition")
